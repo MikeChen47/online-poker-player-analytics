@@ -1,0 +1,71 @@
+// Paste this whole file into Power BI Desktop > DAX query view, click Run to check the numbers,
+// then click "Update model with changes" to add every measure to the model at once.
+// Expected check results (week of 2020-06-22): WAP 61, WAP vs 8wk -10%, Active Base 106,
+// Net Deposits Week 15,339, Failure Rate Week 21.9%.
+
+DEFINE
+    // ---------- Page 1: Weekly growth and loss ----------
+    MEASURE Weekly[Latest Week] = MAX ( Weekly[week_start] )
+
+    MEASURE Weekly[WAP] =
+        VAR wk = [Latest Week]
+        RETURN CALCULATE ( SUM ( Weekly[weekly_active] ), Weekly[week_start] = wk )
+    MEASURE Weekly[WAP 8wk Avg] =
+        VAR wk = [Latest Week]
+        RETURN AVERAGEX ( FILTER ( ALL ( Weekly ), Weekly[week_start] < wk && Weekly[week_start] >= wk - 56 ), Weekly[weekly_active] )
+    MEASURE Weekly[WAP vs 8wk] = DIVIDE ( [WAP] - [WAP 8wk Avg], [WAP 8wk Avg] )
+
+    MEASURE Weekly[Active Base Week] =
+        VAR wk = [Latest Week]
+        RETURN CALCULATE ( SUM ( Weekly[active_base] ), Weekly[week_start] = wk )
+    MEASURE Weekly[Active Base 8wk Avg] =
+        VAR wk = [Latest Week]
+        RETURN AVERAGEX ( FILTER ( ALL ( Weekly ), Weekly[week_start] < wk && Weekly[week_start] >= wk - 56 ), Weekly[active_base] )
+    MEASURE Weekly[Active Base vs 8wk] = DIVIDE ( [Active Base Week] - [Active Base 8wk Avg], [Active Base 8wk Avg] )
+
+    MEASURE Weekly[Net Deposits Week] =
+        VAR wk = [Latest Week]
+        RETURN CALCULATE ( SUM ( Weekly[net_deposits] ), Weekly[week_start] = wk )
+    MEASURE Weekly[Net Deposits 8wk Avg] =
+        VAR wk = [Latest Week]
+        RETURN AVERAGEX ( FILTER ( ALL ( Weekly ), Weekly[week_start] < wk && Weekly[week_start] >= wk - 56 ), Weekly[net_deposits] )
+    MEASURE Weekly[Net Deposits vs 8wk] = DIVIDE ( [Net Deposits Week] - [Net Deposits 8wk Avg], [Net Deposits 8wk Avg] )
+
+    MEASURE Weekly[Failure Rate Week] =
+        VAR wk = [Latest Week]
+        RETURN CALCULATE ( DIVIDE ( SUM ( Weekly[deposits_failed] ), SUM ( Weekly[deposit_attempts] ) ), Weekly[week_start] = wk )
+    MEASURE Weekly[Failure Rate 8wk Avg] =
+        VAR wk = [Latest Week]
+        RETURN AVERAGEX ( FILTER ( ALL ( Weekly ), Weekly[week_start] < wk && Weekly[week_start] >= wk - 56 ), Weekly[deposit_failure_rate] )
+    MEASURE Weekly[Failure Rate vs 8wk] = DIVIDE ( [Failure Rate Week] - [Failure Rate 8wk Avg], [Failure Rate 8wk Avg] )
+
+    MEASURE Weekly[Gained] = SUM ( Weekly[new_players] ) + SUM ( Weekly[reactivated] )
+    MEASURE Weekly[Lost] = - SUM ( Weekly[churned] )
+    MEASURE Weekly[Net Deposits] = SUM ( Weekly[net_deposits] )
+    MEASURE Weekly[Net Deposits 8wk MA] =
+        VAR wk = MAX ( Weekly[week_start] )
+        RETURN AVERAGEX ( FILTER ( ALL ( Weekly ), Weekly[week_start] <= wk && Weekly[week_start] > wk - 56 ), Weekly[net_deposits] )
+
+    // ---------- Page 2: Cohorts and player value ----------
+    MEASURE Players[Players Count] = COUNTROWS ( Players )
+    MEASURE Players[Avg Lifetime Net Deposits] = AVERAGE ( Players[lifetime_net_deposits] )
+    MEASURE Players[Median Lifetime Net Deposits] = MEDIAN ( Players[lifetime_net_deposits] )
+    MEASURE Players[Share of Net Deposits] =
+        DIVIDE ( SUM ( Players[lifetime_net_deposits] ), CALCULATE ( SUM ( Players[lifetime_net_deposits] ), ALL ( Players ) ) )
+
+    // ---------- Page 3: Payments ----------
+    MEASURE Deposits[Monthly Failure Rate] = 1 - DIVIDE ( SUM ( Deposits[completed] ), SUM ( Deposits[attempts] ) )
+    MEASURE Deposits[Failed Deposits EUR] = SUM ( Deposits[failed_eur] )
+    MEASURE Deposits[Completed Deposits EUR] = SUM ( Deposits[completed_eur] )
+
+EVALUATE
+ROW (
+    "Latest Week", [Latest Week],
+    "WAP", [WAP],
+    "WAP vs 8wk", [WAP vs 8wk],
+    "Active Base", [Active Base Week],
+    "Net Deposits Week", [Net Deposits Week],
+    "Failure Rate Week", [Failure Rate Week],
+    "Players", [Players Count],
+    "Median Lifetime Net Deposits", [Median Lifetime Net Deposits]
+)
